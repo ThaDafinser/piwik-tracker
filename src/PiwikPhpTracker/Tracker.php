@@ -63,7 +63,7 @@ class Tracker extends Parameters
             throw new Exception('Invalid value supplied for request timeout: ' . $seconds);
         }
         
-        $this->requestTimeout = $seconds;
+        $this->requestTimeout = (int) $seconds;
     }
 
     /**
@@ -121,14 +121,16 @@ class Tracker extends Parameters
 
     /**
      *
-     * @param unknown $url            
+     * @param string $url            
      * @param string $method            
      * @param string $data            
-     * @param string $force            
+     * @param boolean $force            
      * @return string
      */
     protected function sendRequest($url, $method = 'GET', $data = null, $force = false)
     {
+        $content = '';
+        
         if (function_exists('curl_init')) {
             $options = array(
                 CURLOPT_URL => $url,
@@ -141,12 +143,8 @@ class Tracker extends Parameters
                 )
             );
             
-            switch ($method) {
-                case 'POST':
-                    $options[CURLOPT_POST] = TRUE;
-                    break;
-                default:
-                    break;
+            if ($method === 'POST') {
+                $options[CURLOPT_POST] = TRUE;
             }
             
             // only supports JSON data
@@ -161,7 +159,7 @@ class Tracker extends Parameters
             ob_start();
             $response = @curl_exec($ch);
             ob_end_clean();
-            $content = '';
+            
             if (! empty($response)) {
                 list ($header, $content) = explode("\r\n\r\n", $response, $limitCount = 2);
             }
@@ -170,10 +168,10 @@ class Tracker extends Parameters
                 $stream_options = array(
                     'http' => array(
                         'method' => $method,
-                        'user_agent' => $this->userAgent,
-                        'header' => "Accept-Language: " . $this->acceptLanguage . "\r\n",
-                        'timeout' => $this->requestTimeout // PHP 5.2.1
-                                        )
+                        'user_agent' => $this->getUserAgent(),
+                        'header' => "Accept-Language: " . $this->getLanguage() . "\r\n",
+                        'timeout' => $this->getRequestTimeout()
+                    )
                 );
                 
                 // only supports JSON data
