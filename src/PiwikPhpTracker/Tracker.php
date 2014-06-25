@@ -15,7 +15,7 @@ class Tracker extends Parameters
     /**
      * Request timeout in seconds
      *
-     * @var unknown
+     * @var integer
      */
     protected $requestTimeout = 10;
 
@@ -29,6 +29,7 @@ class Tracker extends Parameters
         $this->setApiUrl($apiUrl);
         $this->setIdSite($idSite);
         
+        $this->setParameter('rand', md5(time()));
         $this->initServerParameters();
     }
 
@@ -95,6 +96,11 @@ class Tracker extends Parameters
         return $url;
     }
 
+    /**
+     *
+     * @param string $documentTitle            
+     * @return string
+     */
     public function doTrackPageView($documentTitle)
     {
         $url = $this->getUrlTrackPageView($documentTitle);
@@ -144,7 +150,7 @@ class Tracker extends Parameters
             );
             
             if ($method === 'POST') {
-                $options[CURLOPT_POST] = TRUE;
+                $options[CURLOPT_POST] = true;
             }
             
             // only supports JSON data
@@ -161,7 +167,7 @@ class Tracker extends Parameters
             ob_end_clean();
             
             if (! empty($response)) {
-                list ($header, $content) = explode("\r\n\r\n", $response, $limitCount = 2);
+                list (, $content) = explode("\r\n\r\n", $response, $limitCount = 2);
             }
         } else {
             if (function_exists('stream_context_create')) {
@@ -180,8 +186,7 @@ class Tracker extends Parameters
                     $stream_options['http']['content'] = $data;
                 }
                 $ctx = stream_context_create($stream_options);
-                $response = file_get_contents($url, 0, $ctx);
-                $content = $response;
+                $content = file_get_contents($url, 0, $ctx);
             }
         }
         
