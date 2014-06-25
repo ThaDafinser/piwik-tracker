@@ -19,6 +19,15 @@
     },
     
     "autoload": {
-        "classmap": [ "PiwikTracker.php"]
+        "classmap": [ "PiwikTracker.php"],
+        "psr-0": {
+            "PiwikPhpTracker\\": "src"
+        }
+    },
+    
+     "autoload-dev": {
+        "psr-0": {
+            "PiwikPhpTrackerTest\\": "tests"
+        }
     }
 }
