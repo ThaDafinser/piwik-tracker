@@ -1,11 +1,9 @@
 <?php
 namespace PiwikPhpTracker;
 
-/**
- *
- * @see API docs http://developer.piwik.org/api-reference/tracking-api
- */
-class Tracker
+use Exception;
+
+class Tracker extends Parameters
 {
 
     /**
@@ -15,28 +13,11 @@ class Tracker
     protected $apiUrl;
 
     /**
-     * See parameter list here http://developer.piwik.org/api-reference/tracking-api
+     * Request timeout in seconds
      *
-     * @var array
+     * @var unknown
      */
-    protected $parameters = array(
-        // required parameters
-        'idsite' => null,
-        'rec' => 1,
-        'url' => null,
-        
-        // recommended
-        'action_name' => null,
-        '_id' => null,
-        'rand' => null,
-        'apiv' => 1,
-        
-        // optional
-        'urlref' => null,
-        
-        'userAgent' => null,
-        'localHour' => null
-    );
+    protected $requestTimeout = 10;
 
     /**
      *
@@ -49,58 +30,6 @@ class Tracker
         $this->setIdSite($idSite);
         
         $this->initServerParameters();
-    }
-
-    /**
-     * Set the default values by the server vars
-     */
-    protected function initServerParameters()
-    {
-        $this->setUrl($this->getCurrentUrl());
-        
-        if (! empty($_SERVER['HTTP_REFERER'])) {
-            $this->setReferrer($_SERVER['HTTP_REFERER']);
-        }
-    }
-
-    /**
-     * If the current URL is 'http://example.org/dir1/dir2/index.php?param1=value1&param2=value2"
-     * will return 'http'
-     *
-     * @return string
-     */
-    protected function getCurrentScheme()
-    {
-        if (isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] == 'on' || $_SERVER['HTTPS'] === true)) {
-            return 'https';
-        }
-        
-        return 'http';
-    }
-
-    /**
-     * If current URL is "http://example.org/dir1/dir2/index.php?param1=value1&param2=value2"
-     * will return "?param1=value1&param2=value2"
-     *
-     * @return string
-     */
-    protected function getCurrentQueryString()
-    {
-        $url = '';
-        if (isset($_SERVER['QUERY_STRING']) && ! empty($_SERVER['QUERY_STRING'])) {
-            $url .= '?' . $_SERVER['QUERY_STRING'];
-        }
-        return $url;
-    }
-
-    /**
-     * Returns the current full URL (scheme, host, path and query string.
-     *
-     * @return string
-     */
-    protected function getCurrentUrl()
-    {
-        return $this->getCurrentScheme() . '://' . $this->getCurrentHost() . $this->getCurrentScriptName() . $this->getCurrentQueryString();
     }
 
     /**
@@ -122,77 +51,142 @@ class Tracker
     }
 
     /**
+     * Sets the maximum number of seconds that the tracker will spend waiting for a response
+     * from Piwik.
      *
-     * @param string $name            
-     * @param mixed $value            
+     * @param integer $seconds            
+     * @throws Exception
      */
-    public function setParameter($name, $value)
+    public function setRequestTimeout($seconds)
     {
-        $this->parameters[$name] = $value;
+        if (! is_int($seconds) || $seconds < 0) {
+            throw new Exception('Invalid value supplied for request timeout: ' . $seconds);
+        }
+        
+        $this->requestTimeout = $seconds;
     }
 
     /**
-     *
-     * @param string $name            
-     * @return mixed
-     */
-    public function getParameter($name)
-    {
-        return $this->parameters[$name];
-    }
-
-    /**
-     *
-     * @return array
-     */
-    public function getParameters()
-    {
-        return $this->parameters;
-    }
-
-    /**
-     *
-     * @param integer $idSite            
-     */
-    public function setIdSite($idSite)
-    {
-        $this->setParameter('idsite', (int) $idSite);
-    }
-
-    /**
+     * Returns the maximum number of seconds the tracker will spend waiting for a response
+     * from Piwik.
      *
      * @return integer
      */
-    public function getIdSite()
+    public function getRequestTimeout()
     {
-        return $this->getParameter('idsite');
+        return $this->requestTimeout;
     }
 
     /**
+     * Builds URL to track a page view.
      *
-     * @param string $url            
+     * @see doTrackPageView()
+     * @param string $documentTitle
+     *            Page view name as it will appear in Piwik reports
+     * @return string URL to piwik.php with all parameters set to track the pageview
      */
-    public function setUrl($url)
+    public function getUrlTrackPageView($documentTitle = '')
     {
-        $this->setParameter('url', (string) $idSite);
+        $url = $this->getRequestUrl();
+        if (strlen($documentTitle) > 0) {
+            $url .= '&action_name=' . urlencode($documentTitle);
+        }
+        
+        return $url;
+    }
+
+    public function doTrackPageView($documentTitle)
+    {
+        $url = $this->getUrlTrackPageView($documentTitle);
+        return $this->sendRequest($url);
+    }
+
+    /**
+     * Returns the base URL for the piwik server.
+     */
+    protected function getBaseUrl()
+    {
+        $apiUrl = $this->getApiUrl();
+        
+        if (strpos($apiUrl, '/piwik.php') === false && strpos($apiUrl, '/proxy-piwik.php') === false) {
+            $apiUrl .= '/piwik.php';
+        }
+        return $apiUrl;
+    }
+
+    protected function getRequestUrl()
+    {
+        return $this->getBaseUrl() . '?' . $this->getQueryParameters();
     }
 
     /**
      *
+     * @param unknown $url            
+     * @param string $method            
+     * @param string $data            
+     * @param string $force            
      * @return string
      */
-    public function getUrl()
+    protected function sendRequest($url, $method = 'GET', $data = null, $force = false)
     {
-        return $this->getParameter('url');
-    }
-
-    public function setReferrer($url)
-    {
-        $this->setParameter('urlref', $url);
-    }
-
-    public function getReferrer()
-    {
-        return $this->getParameter('urlref');
+        if (function_exists('curl_init')) {
+            $options = array(
+                CURLOPT_URL => $url,
+                CURLOPT_USERAGENT => $this->getUserAgent(),
+                CURLOPT_HEADER => true,
+                CURLOPT_TIMEOUT => $this->getRequestTimeout(),
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => array(
+                    'Accept-Language: ' . $this->getLanguage()
+                )
+            );
+            
+            switch ($method) {
+                case 'POST':
+                    $options[CURLOPT_POST] = TRUE;
+                    break;
+                default:
+                    break;
+            }
+            
+            // only supports JSON data
+            if (! empty($data)) {
+                $options[CURLOPT_HTTPHEADER][] = 'Content-Type: application/json';
+                $options[CURLOPT_HTTPHEADER][] = 'Expect:';
+                $options[CURLOPT_POSTFIELDS] = $data;
+            }
+            
+            $ch = curl_init();
+            curl_setopt_array($ch, $options);
+            ob_start();
+            $response = @curl_exec($ch);
+            ob_end_clean();
+            $content = '';
+            if (! empty($response)) {
+                list ($header, $content) = explode("\r\n\r\n", $response, $limitCount = 2);
+            }
+        } else {
+            if (function_exists('stream_context_create')) {
+                $stream_options = array(
+                    'http' => array(
+                        'method' => $method,
+                        'user_agent' => $this->userAgent,
+                        'header' => "Accept-Language: " . $this->acceptLanguage . "\r\n",
+                        'timeout' => $this->requestTimeout // PHP 5.2.1
+                                        )
+                );
+                
+                // only supports JSON data
+                if (! empty($data)) {
+                    $stream_options['http']['header'] .= "Content-Type: application/json \r\n";
+                    $stream_options['http']['content'] = $data;
+                }
+                $ctx = stream_context_create($stream_options);
+                $response = file_get_contents($url, 0, $ctx);
+                $content = $response;
+            }
+        }
+        
+        return $content;
     }
 }
