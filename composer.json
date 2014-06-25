@@ -25,7 +25,6 @@
     },
     
     "autoload": {
-        "classmap": [ "PiwikTracker.php"],
         "psr-0": {
             "PiwikPhpTracker\\": "src"
         }
