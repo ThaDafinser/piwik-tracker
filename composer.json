@@ -17,6 +17,12 @@
         "wiki": "http://dev.piwik.org/",
         "source": "https://github.com/piwik/piwik"
     },
+    "require": {
+        "php":                     ">=5.3.3"
+    },
+    "require-dev": {
+        "phpunit/phpunit":             "~4.0"
+    },
     
     "autoload": {
         "classmap": [ "PiwikTracker.php"],
